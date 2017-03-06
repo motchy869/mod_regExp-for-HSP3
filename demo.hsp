@@ -1,0 +1,88 @@
+#cmpopt varinit 1
+#packopt name "sample"
+
+#include "mod_regExp.as"
+
+#define TRUE	1
+#define FALSE	0
+
+#define WID_MAIN	0
+#define SX_MAIN	640
+#define SY_MAIN	480
+
+*make_windows	//UI準備
+	screen WID_MAIN, SX_MAIN,SY_MAIN
+	title "mod_regExp sample"
+	sysfont 17
+	objmode 1,1
+		//ターゲット入力欄
+		pos 0,0 : mes "ターゲット"
+		strbuf_tgt=""
+		#define SY_MESBOX_TGT	200
+		#define POSY_MESBOX_TGT	15
+		pos 0,POSY_MESBOX_TGT : mesbox strbuf_tgt, SX_MAIN,SY_MESBOX_TGT, 5, 0
+		
+		//検索結果表示欄
+		#const POSY_LISTBOX_RESULT	POSY_MESBOX_TGT+SY_MESBOX_TGT+15
+		pos 0, POSY_LISTBOX_RESULT-15 : mes "検索結果"
+		strbuf_result=""
+		select_listbox_result=0
+		#define SY_LISTBOX_TGT	200
+		objsize SX_MAIN, SY_LISTBOX_TGT
+		pos 0, POSY_LISTBOX_RESULT : listbox select_listbox_result, 0, strbuf_result
+		objid_listbox_result=stat
+		
+		//パターン入力欄
+		#const POSY_INPUT_PAT	POSY_LISTBOX_RESULT+SY_LISTBOX_TGT+15
+		pos 0, POSY_INPUT_PAT-15 : mes "パターン"
+		strbuf_pat=""
+		#const SX_INPUT_PAT	SX_MAIN-80
+		#define SY_INPUT_PAT	18
+		pos 0,POSY_INPUT_PAT : input strbuf_pat, SX_INPUT_PAT, SY_INPUT_PAT, 0
+		
+		//検索ボタン
+		#const SX_BUTTON_SEARCH	SX_MAIN-SX_INPUT_PAT-10
+		#const SY_BUTTON_SEARCH	SY_INPUT_PAT+10
+		objsize SX_BUTTON_SEARCH, SY_BUTTON_SEARCH
+		#const POSY_BUTTON_SEARCH	POSY_INPUT_PAT-(SY_BUTTON_SEARCH-SY_INPUT_PAT)/2
+		pos SX_INPUT_PAT+5, POSY_BUTTON_SEARCH : button gosub "検索",*search
+	
+	stop
+	
+*search	//検索
+	errIdx=0
+	if (regExp_setPat(strbuf_pat, errIdx)==FALSE) {	//パターン登録
+		dialog "構文エラー\n"+errIdx+" 文字目", 1
+	} else {
+		#define max_match	-1	//マッチ個数無制限
+		idx_match=0	//マッチしたインデックスを保存する配列
+		length_match=0	//マッチした文字列の長さを保存する配列。↑とリンク
+		capt_info_array=0	//キャプチャ情報(Capt_info_regExp 型)を保存する配列
+		num_match=regExp_search(strbuf_tgt, 0, strlen(strbuf_tgt), max_match, idx_match, length_match, capt_info_array)	//検索
+		
+		if (num_match<=0) {
+			strbuf_result="一致なし"
+		} else {
+			strbuf_result=""
+			notesel strbuf_result
+			repeat num_match	//一致した個数
+				noteadd ""+cnt+" -> "+strmid(strbuf_tgt, idx_match(cnt), length_match(cnt))+"
+	
+				//キャプチャ情報
+				dup capt_info_this_match, capt_info_array(cnt)
+				count_capt=get_count@Capt_info_regExp(capt_info_this_match)	//キャプチャされた個数
+				strbuf = "    キャプチャ "+count_capt+" 個 -> "
+				repeat count_capt
+					idx=get_idx@Capt_info_regExp(capt_info_this_match, cnt)	//cnt 個目のキャプチャの位置
+					len=get_len@Capt_info_regExp(capt_info_this_match, cnt)	//cnt 個目のキャプチャの長さ
+					strbuf += strmid(strbuf_tgt, idx, len)
+					if (cnt<count_capt-1) : strbuf += ", "
+				loop
+				
+				noteadd strbuf
+			loop
+		}
+		
+		objprm objid_listbox_result, strbuf_result
+	}
+	return

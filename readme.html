@@ -1,0 +1,323 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
+<meta content="ja" http-equiv="Content-Language" />
+<title>readme</title>
+<style type="text/css">
+a {
+	color: #00FFFF;
+}
+a:visited {
+	color: #008080;
+}
+.auto-style1 {
+	text-align: center;
+	font-size: xx-large;
+	font-family: "Myrica M";
+}
+.auto-style3 {
+	text-align: left;
+	font-family: "Myrica M";
+}
+.auto-style4 {
+	border-style: solid;
+	border-width: 0px;
+	margin-left: 40px;
+}
+.auto-style6 {
+	font-size: medium;
+	font-family: "Myrica M";
+	margin-left: 40px;
+}
+.auto-style7 {
+	font-family: "Myrica M";
+	margin-left: 40px;
+}
+.auto-style8 {
+	font-size: large;
+	font-family: "Myrica M";
+}
+.auto-style9 {
+	font-family: "Myrica M";
+	border-style: solid;
+	border-width: 1px;
+}
+.auto-style10 {
+	font-family: "Myrica M";
+	text-align: center;
+	border-style: solid;
+	border-width: 1px;
+}
+.auto-style11 {
+	text-align: left;
+}
+.auto-style12 {
+	font-size: large;
+	font-family: "Myrica M";
+	margin-left: 40px;
+}
+.auto-style13 {
+	font-size: medium;
+	font-family: "Myrica M";
+	margin-left: 80px;
+}
+.auto-style14 {
+	font-size: medium;
+}
+.auto-style15 {
+	margin-left: 40px;
+}
+.auto-style16 {
+	font-family: "Myrica M";
+	font-size: medium;
+}
+.auto-style17 {
+	border-style: solid;
+	border-width: 1px;
+}
+.auto-style18 {
+	color: #EC8A12;
+}
+</style>
+<meta content="mod_regExp" name="keywords" />
+<meta content="mod_regExp の readme" name="description" />
+</head>
+
+<body style="color: #FFFFFF; background-color: #000000">
+
+<p class="auto-style1">mod_regExp</p>
+<hr />
+<table style="width: 100%">
+	<tr>
+		<td class="auto-style3" style="width: 120px">【作者】</td>
+		<td class="auto-style3" colspan="4" style="width: 100px">motchy</td>
+	</tr>
+	<tr>
+		<td class="auto-style3" style="width: 120px">【バージョン】</td>
+		<td class="auto-style3" colspan="4" style="width: 100px">1.1.0</td>
+	</tr>
+	<tr>
+		<td class="auto-style3" style="width: 120px">【最終更新】</td>
+		<td class="auto-style3" colspan="4" style="width: 100px">2017/3/6</td>
+	</tr>
+	<tr>
+		<td class="auto-style3" style="width: 120px">【開発環境】</td>
+		<td class="auto-style3" style="width: 50px">言語</td>
+		<td class="auto-style3" style="width: 250px">Hot Soup Processor 3.5 beta 
+		4</td>
+		<td class="auto-style3" style="width: 50px">OS</td>
+		<td class="auto-style3">Win10 Home 32bit</td>
+	</tr>
+</table>
+<hr />
+<p class="auto-style8">ざっくり説明</p>
+<p class="auto-style7">　HSP3用 <span class="auto-style18"><strong>Shift-JIS 専用</strong></span>正規表現モジュール。( ), [ ], { }, \, |, \w, \W, \s, \S, \d, 
+\D, \b, \B, ., ^, $, ?, *, +, *?, +? 
+に対応。キャプチャもできる。もちろん (?:) でキャプチャ回避できる。</p>
+<p class="auto-style7">　. は任意の一文字にマッチするが、その際に半角,全角の区別が適切に為される。</p>
+<hr />
+<p class="auto-style8">使い方</p>
+<p class="auto-style6">mod_regExp.as をインクルードすれば使える。コマンドは次の3つ。</p>
+<table class="auto-style4" style="width: 100%">
+	<tr>
+		<td class="auto-style10" rowspan="3" style="width: 150px">regExp_setPat</td>
+		<td class="auto-style10">パターンのセット</td>
+	</tr>
+	<tr>
+		<td class="auto-style10">val = regExp_setPat(pat_, errIdx_)</td>
+	</tr>
+	<tr>
+		<td class="auto-style9">
+		<ul>
+			<li>pat_ : パターン文字列</li>
+			<li>errIdx_ : (構文エラーのとき)エラーを見つけた位置が保存される</li>
+		</ul>
+		<p>戻り値 : (0,1) = (失敗(構文エラー), 成功)</p>
+		</td>
+	</tr>
+	<tr>
+		<td class="auto-style10" rowspan="3" style="width: 150px">regExp_match</td>
+		<td class="auto-style10">マッチ判定</td>
+	</tr>
+	<tr>
+		<td class="auto-style10">m = regExp_match(tgt_, capt_info)</td>
+	</tr>
+	<tr>
+		<td class="auto-style10">
+		<ul>
+			<li class="auto-style11">tgt_ : ターゲット文字列</li>
+			<li class="auto-style11">capt_info_ : Capt_info_regExp 
+			型のインスタンス(キャプチャ情報を記録したモジュール変数)が保存される</li>
+		</ul>
+		<p class="auto-style11">戻り値 : (-3,-2,-1,1) : (パターン未登録, 引数不正, マッチしない, 
+		マッチした長さ)</p>
+		</td>
+	</tr>
+	<tr>
+		<td class="auto-style10" rowspan="3" style="width: 150px">regExp_search</td>
+		<td class="auto-style10">検索</td>
+	</tr>
+	<tr>
+		<td class="auto-style10">m = regExp_search(tgt_, left_, right_, 
+		max_match_, idx_match_, length_match_, capt_info_array_)</td>
+	</tr>
+	<tr>
+		<td class="auto-style10">
+		<ul>
+			<li class="auto-style11">tgt_ : ターゲット文字列</li>
+			<li class="auto-style11">left_, right_ : 検索開始,終了位置(終了位置は解析対象に含まれない)</li>
+			<li class="auto-style11">max_match_ : 検索する最大個数。-1を指定すると 
+			INT_MAX($7FFFFFFF=214783647) として扱う(事実上無制限になる)。</li>
+			<li class="auto-style11">idx_match_ : マッチしたインデックスを保存する配列</li>
+			<li class="auto-style11">length_match_ : マッチした文字列の長さを保存する配列</li>
+			<li class="auto-style11">capt_info_array_ : Capt_info_regExp 
+			型のインスタンス(キャプチャ情報を記録したモジュール変数)の配列を保存する</li>
+		</ul>
+		<p class="auto-style11">戻り値 : (-2, -1, larger) : (パターン未登録, 引数不正, 
+		マッチした個数)</p>
+		<p class="auto-style11">　i番目にマッチした文字列の位置が idx_match_(i) に, 長さが 
+		length_match_(i) に, キャプチャ情報が capt_info_array_(i) にそれぞれ記録される。</p>
+		</td>
+	</tr>
+</table>
+<p class="auto-style12"><strong>【 Capt_info_regExp 型のモジュール変数の使い方 】</strong></p>
+<p class="auto-style13">　インスタンスを cinfo とするとき、キャプチャした文字列の個数を 
+get_count@Capt_info_regExp(cinfo) で得られる。i番目のキャプチャ文字列の位置を 
+get_idx@Capt_info_regExp(cinfo, i) で, 長さを get_len@Capt_info_regExp(cinfo, 
+i)で得られる。</p>
+<p class="auto-style12"><strong>【 デバッグモード 】</strong></p>
+<p class="auto-style13">　mod_regExp.as 冒頭の #define global DEBUGMODE 
+のコメント化を解除するとデバッグモードになり、仕込まれた大量の検査用コードが活性化する。中には重い処理も有り速度が多少落ちる。</p>
+<hr />
+<p class="auto-style8">サンプルコード</p>
+<table class="auto-style17" style="width: 100%">
+	<tr>
+		<td><span class="auto-style16">#include "mod_regExp.as"</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">//<span class="auto-style18">※次のサンプルターゲットは 
+		http://qiita.com/jnchito/items/64c3fdc53766ac6f2008 より引用</span></span><br class="auto-style16" />
+		<span class="auto-style16">target={"クープバゲットのパンは美味しかった。</span><br class="auto-style16" />
+		<span class="auto-style16">今日はクープ バゲットさんに行きました。</span><br class="auto-style16" />
+		<span class="auto-style16">クープ　バゲットのパンは最高。</span><br class="auto-style16" />
+		<span class="auto-style16">ジャムおじさんのパン、ジャムが入ってた。</span><br class="auto-style16" />
+		<span class="auto-style16">また行きたいです。クープ・バゲット。</span><br class="auto-style16" />
+		<span class="auto-style16">クープ・バケットのパン、売り切れだった（&gt;&lt;）"}</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">//正規表現パターン</span><br class="auto-style16" />
+		<span class="auto-style16">pattern=<span class="auto-style18"><strong>"クープ(?: 
+		|　|・)?バ(ゲ|ケ)ット"</strong></span></span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">//パターンセット</span><br class="auto-style16" />
+		<span class="auto-style16">errIdx=0</span><br class="auto-style16" />
+		<span class="auto-style16">rc=regExp_setPat(pattern, errIdx)</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">//検索</span><br class="auto-style16" />
+		<span class="auto-style16">max_match=-1 //検索個数無制限</span><br class="auto-style16" />
+		<span class="auto-style16">idx_match=0 : length_match=0 : 
+		cpat_info_array=0</span><br class="auto-style16" />
+		<span class="auto-style16">num_match=regExp_search(target, 0, 
+		strlen(target), max_match, idx_match, length_match, cpat_info_array)</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">//結果表示</span><br class="auto-style16" />
+		<span class="auto-style16">mes "ヒット : "+num_match+" 個"+"\n"</span><br class="auto-style16" />
+		<span class="auto-style16">repeat num_match</span><br class="auto-style16" />
+		<span class="auto-style16">//ヒットした文字列を表示</span><br class="auto-style16" />
+		<span class="auto-style16">string_hit=strmid(target, idx_match(cnt), 
+		length_match(cnt))</span><br class="auto-style16" />
+		<span class="auto-style16">mes "No."+cnt+" -&gt; "+string_hit</span><br class="auto-style16" />
+		<span class="auto-style16">mes ""</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">//キャプチャされた文字列を表示</span><br class="auto-style16" />
+		<span class="auto-style16">dup cinfo, cpat_info_array(cnt) //便利テク</span><br class="auto-style16" />
+		<span class="auto-style16">count_capt=get_count@Capt_info_regExp(cinfo)</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">strbuf=""</span><br class="auto-style16" />
+		<span class="auto-style16">repeat count_capt</span><br class="auto-style16" />
+		<span class="auto-style16">idx=get_idx@Capt_info_regExp(cinfo, cnt)</span><br class="auto-style16" />
+		<span class="auto-style16">len=get_len@Capt_info_regExp(cinfo, cnt)</span><br class="auto-style16" />
+		<span class="auto-style16">strbuf += strmid(target, idx, len)</span><br class="auto-style16" />
+		<span class="auto-style16">if (cnt&lt;count_capt-1) : strbuf += ", " 
+		//見やすくするために区切る</span><br class="auto-style16" />
+		<span class="auto-style16">loop</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">mes " キャプチャ : "+count_capt+" 個 : "+strbuf</span><br class="auto-style16" />
+		<span class="auto-style16">mes ""</span><br class="auto-style16" />
+		<span class="auto-style16">loop</span></td>
+	</tr>
+</table>
+<p class="auto-style8">実行結果</p>
+<table class="auto-style17" style="width: 100%">
+	<tr>
+		<td><span class="auto-style16">ヒット : 5 個</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">No.0 -&gt; クープバゲット</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">キャプチャ : 1 個 : ゲ</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">No.1 -&gt; クープ バゲット</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">キャプチャ : 1 個 : ゲ</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">No.2 -&gt; クープ　バゲット</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">キャプチャ : 1 個 : ゲ</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">No.3 -&gt; クープ・バゲット</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">キャプチャ : 1 個 : ゲ</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">No.4 -&gt; クープ・バケット</span><br class="auto-style16" />
+		<br class="auto-style16" />
+		<span class="auto-style16">キャプチャ : 1 個 : ケ</span></td>
+	</tr>
+</table>
+<p class="auto-style8">&nbsp;</p>
+<hr />
+<p class="auto-style8">非対応の機能</p>
+<p class="auto-style6">　パターン文字列の [ ] 
+内ではすべての文字を1バイト文字として扱っているため全角文字を入れても意味をなさない。すなわち [あい] 
+としても「あい」は4バイトに切り刻まれてしまうため意味がない。<br />
+　[ ] の代わりに (|) を用いて (あ|い) とするしかない。</p>
+<hr />
+<p class="auto-style8">ライセンス</p>
+<p class="auto-style6">motchy が書いたソースコードと関連ファイルはMITライセンスに従います。<br />
+<br />
+This software's source code and related files made by motchy are released under 
+the MIT license.<br />
+<br />
+MITライセンス全文 : <a href="https://opensource.org/licenses/mit-license.php">
+https://opensource.org/licenses/mit-license.php</a></p>
+<hr />
+<p class="auto-style8">免責</p>
+<p class="auto-style6">本ソフトウェアの使用により生じる一切の損害の責任を負いません。</p>
+<hr />
+<p class="auto-style8">作者連絡先</p>
+<p class="auto-style6">
+<a href="mailto:motchy869@gmail.com?subject=mod_regExpに関する問い合わせ">
+motchy869@gmail.com</a></p>
+<p class="auto-style12"><span class="auto-style14">
+不具合等、お気付きの点がありましたらお気軽にご連絡ください。特にバグ報告は助けになります。但し対処する約束はできません。その他、使用方法や不明な点についての質問も受け付けています。</span></p>
+<hr />
+<p class="auto-style8">謝辞</p>
+<p class="auto-style6">手軽で多機能なプログラミング言語 Hot Soup Processor 開発者に感謝申し上げます。</p>
+<hr />
+<p class="auto-style8">更新履歴</p>
+<table class="auto-style15" style="width: 100%">
+	<tr>
+		<td class="auto-style16" style="width: 100px; height: 20px">ver 1.0.0</td>
+		<td class="auto-style16" style="width: 100px; height: 20px">2017/3/6</td>
+		<td class="auto-style16" style="height: 20px">初版公開</td>
+	</tr>
+	<tr>
+		<td class="auto-style16" style="width: 100px; height: 20px">ver 1.1.0</td>
+		<td class="auto-style16" style="width: 100px; height: 20px">2017/3/6</td>
+		<td class="auto-style16" style="height: 20px">次のメタキャラクタを追加 \w \W \s\ \S 
+		\D \b \B</td>
+	</tr>
+</table>
+
+</body>
+
+</html>

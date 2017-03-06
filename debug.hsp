@@ -1,0 +1,202 @@
+#cmpopt varinit 1
+
+#include "mod_regExp.as"
+
+#define TRUE	1
+#define FALSE	0
+
+#define OC_INVALID	-1
+
+#if FALSE
+	tgt="{1,2}"
+	n=0 : m=0
+	errIdx=0
+	rc=parse_in_braces@mod_regExp(tgt, 1,strlen(tgt)-1, n,m, errIdx)
+	mes "rc,n,m,errIdx = "+rc+","+n+","+m+","+errIdx
+#endif
+
+#if FALSE
+	tgt="[a-zA-Z0-9]"
+	charSet=""
+	errIdx=0
+	rc=parse_in_boxBrackets@mod_regExp(tgt, 1,strlen(tgt)-1, charSet, errIdx)
+	mes "rc, errIdx = "+rc+","+errIdx
+	mes "charSet = "+charSet
+#endif
+
+#if FALSE
+	//tgt="A\\*B\\tC"
+	//tgt="A\\dB"
+	//tgt="A^B"
+	//tgt="^AB"
+	//tgt="A$B"
+	//tgt="AB$"
+	//tgt="\\.A"
+	rc=is_simplifiable@mod_regExp(tgt, 0, strlen(tgt))
+	mes "rc = "+rc
+#endif
+
+#if FALSE
+	mes simplify_one_char@mod_regExp("\\t")+"B"
+#endif
+
+#if FALSE
+	//tgt="ABC"
+	//tgt="AB\\\\C"
+	//tgt="AB\\tC"
+	//tgt="AB\\"
+	//tgt="ABC?D"
+	//tgt="A?B"
+	//tgt="\\tA"
+	//tgt="(AB)"
+	//tgt="AB^C(D)"
+	//tgt="^AB"
+	//tgt="AB$C"
+	//tgt="AB$"
+	//tgt="あ\\tいう"
+	//tgt="おー*"
+	tgt="\\あ"
+	simplified_string="" : errIdx=0
+	rc=get_one_simplifiable_string@mod_regExp(tgt, 0, strlen(tgt), simplified_string, errIdx)
+	mes "rc,errIdx = "+rc+","+errIdx
+	mes "simplified_string = "+simplified_string
+#endif
+
+#if FALSE
+	//tgt="A\\*B\\tC"
+	//tgt="^ABC"
+	//tgt="ABC$"
+	//tgt="あ\\tい$う"
+	mes simplify@mod_regExp(tgt, 0, strlen(tgt))
+#endif
+
+#if FALSE
+	//tgt="AB\\tC?"
+	//tgt="A\\"
+	//tgt="(ABC)DE"
+	//tgt="((ABC))DE"
+	//tgt="AB(CDE)
+	//tgt="()A"
+	//tgt="{1,2}"
+	//tgt="[a-z]"
+	//tgt="\\dA"
+	//tgt=".A"
+	//tgt="$"
+	//tgt="$AB"
+	//tgt="|AB"
+	//tgt="?AB"
+	//tgt="*AB"
+	//tgt="*?AB"
+	//tgt="+AB"
+	//tgt="+?AB"
+	len=0 : node=0 : errIdx=0
+	oc=get_one_oc@mod_regExp(tgt, 0, strlen(tgt),len, node, errIdx)
+	mes "oc,len,errIdx = "+oc+","+len+","+errIdx
+	if (oc!=OC_INVALID) {mes "code = "+get_string@Node_regExp(node)}
+#endif
+
+#if FALSE
+	//tgt="ABC|DEF"
+	//tgt="AB?CD?EF"
+	//tgt="(A|B)C"
+	//tgt="^AB$"
+	//tgt="(W|w)indows ?9[58]"
+	//tgt="AB*C"
+	//tgt="(AB)*C"
+	//tgt="AB|CD*E"
+	//tgt="\\.A\\*B"
+	//tgt=".*B"
+	//tgt=".*?B"
+	//tgt="A|*"
+	//tgt="\\dAB"
+	//tgt="A{2,3}B"
+	//tgt="\\d{2,3}"
+	//tgt="おー"
+	//tgt="(あいう|えお)かき"
+	tgt="\\b\\s+?"
+	errIdx=0
+	if (regExp_setPat(tgt, errIdx)) {
+		mes "構文木↓"
+		show_tree@mod_regExp
+	} else {
+		mes "syntax error"
+		mes "errIdx = "+errIdx
+		stop
+	}
+#endif
+
+#if FALSE
+	//tgt="ABC" : pat="ABC"
+	//tgt="ABC" : pat="A[A-Z].?"
+	tgt="Windows95" : pat="W(indows|INDOWS) ?9([58])"
+	//tgt="pizza" : pat="piz{2}a"
+	//tgt="あいう" : pat="あいう"
+	//tgt="AAA" : pat="A{1,2}"
+	//tgt="ABCCC" : pat=".*?C"
+	//tgt="ABCCC" : pat=".*C"
+	//tgt="AABA" : pat="A*"
+	//tgt="あいう" : pat=".{2}"
+	//tgt="#define A	123" : pat="^.*?$"
+	//tgt="	a" : pat="[\t]?a"
+	errIdx=0
+	if (regExp_setPat(pat, errIdx)) {
+		mes "ターゲット : "+tgt
+		mes "パターン : "+pat+"\n"
+		mes "構文木↓"
+		show_tree@mod_regExp
+		mes ""
+	
+		capt_info=0 : newmod capt_info, Capt_info_regExp
+		m=match_@mod_regExp(tgt, 0, strlen(tgt), addr_root@mod_regExp, capt_info)
+		
+		if (m>=0) {
+			mes "結果 : "+m+"バイト一致"
+			mes strmid(tgt, 0, m)+"\n"
+			count_capt=get_count@Capt_info_regExp(capt_info)
+			mes "キャプチャ : "+count_capt+"個"
+			repeat count_capt
+				mes strmid(tgt, get_idx@Capt_info_regExp(capt_info, cnt), get_len@Capt_info_regExp(capt_info, cnt))
+			loop
+		} else {
+			mes "結果 : 不一致"
+		}
+	} else {
+		mes "syntax error"
+		mes "errIdx = "+errIdx
+		stop
+	}
+#endif
+
+#if TRUE
+	tgt="Windows95" : pat="W(indows|INDOWS) ?9(?:[58])"
+	errIdx=0
+	if (regExp_setPat(pat, errIdx)) {
+		mes "ターゲット : "+tgt
+		mes "パターン : "+pat+"\n"
+		mes "構文木↓"
+		show_tree@mod_regExp
+		mes ""
+	
+		capt_info=0
+		m=regExp_match(tgt, capt_info)
+	
+		if (m) {
+			mes "結果 : "+m+" バイト一致"
+			mes strmid(tgt, 0, m)+"\n"
+	
+			count_capt=get_count@Capt_info_regExp(capt_info)
+			mes "キャプチャ : "+count_capt+"個"
+			repeat count_capt
+				mes strmid(tgt, get_idx@Capt_info_regExp(capt_info, cnt), get_len@Capt_info_regExp(capt_info, cnt))
+			loop
+			
+		} else {
+			mes "結果 : 不一致"
+		}
+		
+	} else {
+		mes "syntax error"
+		mes "errIdx = "+errIdx
+		stop
+	}
+#endif
