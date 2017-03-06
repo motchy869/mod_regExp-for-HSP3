@@ -1,0 +1,5 @@
+motchy が書いたソースコードと関連ファイルはMITライセンスに従います。
+
+This software's source code and related files made by motchy are released under the MIT license.
+
+MITライセンス全文 : https://opensource.org/licenses/mit-license.php
