@@ -867,7 +867,9 @@
 					return -1
 				case OC_NOT_ENG_LET
 					if (left_==right_) {return -1}
-					if (is_eng_letter(peek(tgt_, left_))) {return -1}
+					char=peek(tgt_, left_)
+					if (is_eng_letter(char)) {return -1}
+					if (is_first_byte_of_zenkaku) {return 2}
 					return 1
 				case OC_ANY_SPACE
 					if (left_==right_) {return -1}
@@ -875,7 +877,9 @@
 					return -1
 				case OC_NOT_SPACE
 					if (left_==right_) {return -1}
-					if (is_space(peek(tgt_, left_))) {return -1}
+					char=peek(tgt_, left_)
+					if (is_space(char)) {return -1}
+					if (is_first_byte_of_zenkaku(char)) {return 2}
 					return 1
 				case OC_ANY_DIGIT
 					if (left_==right_) {return -1}
@@ -883,7 +887,9 @@
 					return -1
 				case OC_NOT_DIGIT
 					if (left_==right_) {return -1}
-					if (is_number(peek(tgt_, left_))) {return -1}
+					char=peek(tgt_, left_)
+					if (is_number(char)) {return -1}
+					if (is_first_byte_of_zenkaku(char)) {return 2}
 					return 1
 				case OC_BOUND
 					if (left_==right_) {return 0}
@@ -891,7 +897,9 @@
 					return -1
 				case OC_NOT_BOUND
 					if (left_==right_) {return -1}
-					if (is_space(peek(tgt_, left_))) {return -1}
+					char=peek(tgt_, left_)
+					if (is_space(char)) {return -1}
+					if (is_first_byte_of_zenkaku(char)) {return 2}
 					return 1
 				case OC_ANY
 					if (left_==right_) {return -1}
@@ -912,7 +920,9 @@
 					return -1
 				case OC_ANTI_SET
 					if (left_==right_) {return -1}
-					if (is_char_in_set@Node_regExp(thisnode, peek(tgt_, left_))) {return -1}
+					char=peek(tgt_, left_)
+					if (is_char_in_set@Node_regExp(thisnode, char)) {return -1}
+					if (is_first_byte_of_zenkaku(peek(tgt_, left_))) {return 2}
 					return 1
 			swend
 		
