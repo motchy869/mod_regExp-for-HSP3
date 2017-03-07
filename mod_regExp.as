@@ -932,7 +932,7 @@
 				assertEx (addr_right!=NULL)
 				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
 				len_match_right=match_(tgt_, left_, right_, addr_right, capt_info_)
-				assertEx ((left_+len_match_left<right_)&&(left_+len_match_right<right_))
+				assertEx ((left_+len_match_left<=right_)&&(left_+len_match_right<=right_))
 				if ((len_match_left==-1)&&(len_match_right==-1)) {return -1}
 				if (len_match_left>len_match_right) {return len_match_left}
 				return len_match_right
