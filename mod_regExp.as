@@ -3,7 +3,7 @@
 	
 	HSP3用正規表現モジュール
 	
-	ver 1.1.0
+	ver 1.2.0
 */
 
 #define global DEBUGMODE
@@ -29,9 +29,9 @@
 	#enum global OC_NOT_SPACE	/*\S*/
 	#enum global OC_ANY_DIGIT	/*\d*/
 	#enum global OC_NOT_DIGIT	/*\D*/
+	#enum global OC_ANY	//.
 	#enum global OC_BOUND	/*\b*/
 	#enum global OC_NOT_BOUND	/*B*/
-	#enum global OC_ANY	//.
 	#enum global OC_LINEHEAD	//行頭
 	#enum global OC_LINEEND	//行末
 	#enum global OC_JOIN	//連結演算子
@@ -46,6 +46,8 @@
 	#enum global OC_NM	//{n,m}
 	#enum global OC_SET	//文字集合
 	#enum global OC_ANTI_SET	//除外文字集合
+	#enum global OC_PACK	//(?:) 更に解析、分解され、最終的な構文木には残らない。
+	#enum global OC_POSITIVE_LOOKAHEAD	/*\/*/
 	#enum global OC_CAPTURE	//キャプチャ
 	#enum global OC_DUMMY
 
@@ -174,8 +176,8 @@
 		loop
 		return flg
 	
-	#defcfunc local is_alphabetical_meta_char int char_	//アルファベット1文字のメタキャラクタ(\d の d 等)か？
-		return ((char_=='w')||(char_=='W')||(char_=='s')||(char_=='S')||(char_=='d')||(char_=='D')||(char_=='b')||(char_=='B'))
+	#defcfunc local is_escaped_control_char int char_	//\ と合わせて制御文字になる(\d の d 等)か？
+		return ((char_=='w')||(char_=='W')||(char_=='s')||(char_=='S')||(char_=='d')||(char_=='D')||(char_=='/')||(char_=='b')||(char_=='B'))
 	
 	#defcfunc local is_open_bracket int char_	//それは開き括弧か？
 		return (char_=='(')||(char_=='{')||(char_=='[')
@@ -217,8 +219,8 @@
 		loop
 		return flg
 	
-	#defcfunc local dont_need_left_operand int oc_	//左オペランドが不要か？
-		return ((oc_==OC_SIMPLE)||(oc_==OC_ANY_ENG_LET)||(oc_==OC_NOT_ENG_LET)||(oc_==OC_ANY_SPACE)||(oc_==OC_NOT_SPACE)||(oc_==OC_ANY_DIGIT)||(oc_==OC_NOT_DIGIT)||(oc_==OC_BOUND)||(oc_==OC_NOT_BOUND)||(oc_==OC_ANY)||(oc_==OC_LINEEND)||(oc_==OC_SET)||(oc_==OC_ANTI_SET)||(oc_==OC_CAPTURE))
+	#defcfunc local dont_need_left_operand int oc_	//左オペランド不要か?
+		return ((oc_==OC_SIMPLE)||(oc_==OC_ANY_ENG_LET)||(oc_==OC_NOT_ENG_LET)||(oc_==OC_ANY_SPACE)||(oc_==OC_NOT_SPACE)||(oc_==OC_ANY_DIGIT)||(oc_==OC_NOT_DIGIT)||(oc_==OC_ANY)||(oc_==OC_BOUND)||(oc_==OC_NOT_BOUND)||(oc_==OC_LINEHEAD)||(oc_==OC_LINEEND)||(oc_==OC_SET)||(oc_==OC_ANTI_SET)||(oc_==OC_PACK)||(oc_==OC_POSITIVE_LOOKAHEAD)||(oc_==OC_CAPTURE))
 
 	#defcfunc local node_exists int addr_	//(デバッグ用)そのノードが存在するか
 		if (addr_==NULL) {return FALSE}
@@ -399,7 +401,7 @@
 				if (left==right_-1) {flg=FALSE : break}	//\ の右側が空
 				//\ の右側を調べる
 				char=peek(tgt_, left+1)
-				if (is_alphabetical_meta_char(char)) {flg=FALSE : break}
+				if (is_escaped_control_char(char)) {flg=FALSE : break}
 				if (is_first_byte_of_zenkaku(char)) {left+=3} else {left+=2}
 				continue
 			}
@@ -499,7 +501,7 @@
 				if (left==right_-1) {flg_error=TRUE : errIdx_=left : break}	//\ の右が空
 				char=peek(tgt_, left+1)
 				if (is_first_byte_of_zenkaku(char)) {left++ : delta_left_prev=1 : continue}
-				if (is_alphabetical_meta_char(char)) {break}
+				if (is_escaped_control_char(char)) {break}
 				char=convert_escaped_char(char)
 				poke simplified_string_, byte_len_simplified, char
 				byte_len_simplified++ : char_count_simplified++ : is_prev_zenkaku=FALSE
@@ -567,43 +569,57 @@
 		len_left_simple_string=get_one_simplifiable_string(tgt_, left_, right_, simplified_string, errIdx_)
 		if (len_left_simple_string==-1) {return OC_INVALID}
 		if (len_left_simple_string>=1) {
-			len_=len_left_simple_string : oc=OC_SIMPLE
-			newmod node_, Node_regExp, oc, simplified_string, 0,0, NULL,NULL
-		} else {
+			len_=len_left_simple_string
+			newmod node_, Node_regExp, OC_SIMPLE, simplified_string, 0,0, NULL,NULL
+			return OC_SIMPLE
+		}
 			char=peek(tgt_, left_)	//必ず制御文字
 			switch char
 				case '('
 					//対応する ) を探す
 					right2=find_close_bracket(tgt_, ')', left_+1, right_, FALSE)
-					if (right2==-1) {oc=OC_INVALID : errIdx_=left_ : swbreak}
+					if (right2==-1) {errIdx_=left_ : return OC_INVALID}
 					len_=right2+1-left_
-					if (len_<=2) {oc=OC_INVALID : errIdx_=left_ : swbreak}
+					if (len_<=2) {errIdx_=left_ : return OC_INVALID}	//中身が空
 					
-					oc=OC_CAPTURE
-					newmod node_, Node_regExp, oc, strmid(tgt_, left_, len_), 0,0, NULL,NULL
-					swbreak
+					//( ), (?:), (?=) のどれか?
+					char=peek(tgt_, left_+1)
+					if (char=='?') {
+						if (len_<=4) {errIdx_=left_+1 : return OC_INVALID}	//(?), (?:), (?=)
+						char=peek(tgt_, left_+2)
+						switch char
+							case ':' : oc=OC_PACK : swbreak
+							case '=' : oc=OC_POSITIVE_LOOKAHEAD : swbreak
+							default
+								errIdx_=left_+2 : return OC_INVALID
+						swend
+						newmod node_, Node_regExp, oc, strmid(tgt_, left_, len_), 0,0, NULL,NULL
+						return oc
+					}
+					newmod node_, Node_regExp, OC_CAPTURE, strmid(tgt_, left_, len_), 0,0, NULL,NULL
+					return OC_CAPTURE
 				case '{'
 					//対応する } を探す
 					right2=find_close_bracket(tgt_, '}', left_+1, right_, FALSE)
-					if (right2==-1) {oc=OC_INVALID : errIdx_=left_ : swbreak}
-					len_=right2+1-left_
-					if (len_<=2) {oc=OC_INVALID : errIdx_=left_ : swbreak}
+					if (right2==-1) {errIdx_=left_ : return OC_INVALID}
+					en_=right2+1-left_
+					if (len_<=2) {errIdx_=left_ : return OC_INVALID}	//中身が空
 					
 					oc=parse_in_braces(tgt_, left_+1, right2, n,m, errIdx_)
-					if (oc==OC_INVALID) {swbreak}
+					if (oc==OC_INVALID) {return OC_INVALID}
 					newmod node_, Node_regExp, oc, strmid(tgt_, left_, len_), n,m, NULL,NULL
-					swbreak
+					return oc
 				case '['
 					//対応する ] を探す
 					right2=find_close_bracket(tgt_, ']', left_+1, right_, TRUE)
-					if (right2==-1) {oc=OC_INVALID : errIdx_=left_ : swbreak}
+					if (right2==-1) {errIdx_=left_ : return OC_INVALID}
 					len_=right2+1-left_
-					if (len_<=2) {oc=OC_INVALID : errIdx_=left_ : swbreak}
+					if (len_<=2) {errIdx_=left_ : return OC_INVALID}	//中身が空
 					
 					oc=parse_in_boxBrackets(tgt_, left_+1, right2, strbuf, errIdx_)
-					if (oc==OC_INVALID) {swbreak}
+					if (oc==OC_INVALID) {return OC_INVALID}
 					newmod node_, Node_regExp, oc, strbuf, 0,0, NULL, NULL
-					swbreak
+					return oc
 				case '\\'
 					//\ の右が空でないことは get_one_simplifiable_string() により保証されている
 					//簡約化不可能、つまり制御構文であることは保証されている
@@ -617,33 +633,28 @@
 						case 'd' : oc=OC_ANY_DIGIT : strbuf="d" : swbreak
 						case 'D' : oc=OC_NOT_DIGIT : strbuf="D" : swbreak
 						case 'b' : oc=OC_BOUND : strbuf="b" : swbreak
-						case 'B' : oc==OC_NOT_BOUND : strbuf="B" : swbreak
+						case 'B' : oc=OC_NOT_BOUND : strbuf="B" : swbreak
 						default : assertEx (FALSE)
 					swend
 					len_=2
 					newmod node_, Node_regExp, oc, strbuf, 0,0, NULL,NULL
-					swbreak
+					return oc
 				case '.'
-					len_=1 : oc=OC_ANY
-					newmod node_, Node_regExp, oc, ".", 0,0, NULL,NULL
-					swbreak
+					len_=1 : newmod node_, Node_regExp, OC_ANY, ".", 0,0, NULL,NULL
+					return OC_ANY
 				case '^'
-					len_=1 : oc=OC_LINEHEAD
-					newmod node_, Node_regExp, oc, "^", 0,0, NULL,NULL
-					swbreak
+					len_=1 : newmod node_, Node_regExp, OC_LINEHEAD, "^", 0,0, NULL,NULL
+					return OC_LINEHEAD
 				case '$'
-					len_=1 : oc=OC_LINEEND
-					newmod node_, Node_regExp, oc, "$", 0,0, NULL,NULL
-					swbreak
+					len_=1 : newmod node_, Node_regExp, OC_LINEEND, "$", 0,0, NULL,NULL
+					return OC_LINEEND
 				case '|'
-					if (left_==right_-1) {oc=OC_INVALID : errIdx_=left_ : swbreak}	//右が空
-					len_=1 : oc=OC_OR
-					newmod node_, Node_regExp, oc, "|", 0,0, NULL,NULL
-					swbreak
+					if (left_==right_-1) {errIdx_=left_ : return OC_INVALID}	//右が空
+					len_=1 : newmod node_, Node_regExp, OC_OR, "|", 0,0, NULL,NULL
+					return OC_OR
 				case '?'
-					len_=1 : oc=OC_ZERO_OR_ONE
-					newmod node_, Node_regExp, oc, "?", 0,0, NULL,NULL
-					swbreak
+					len_=1 : newmod node_, Node_regExp, OC_ZERO_OR_ONE, "?", 0,0, NULL,NULL
+					return OC_ZERO_OR_ONE
 				case '*'
 					if (left_==right_-1) {
 						oc=OC_ZERO_OR_MORE_GREEDY : len_=1  : strbuf="*"
@@ -654,7 +665,7 @@
 						} else {oc=OC_ZERO_OR_MORE_GREEDY : len_=1 : strbuf="*"}
 					}
 					newmod node_, Node_regExp, oc, strbuf, 0,0, NULL,NULL
-					swbreak
+					return oc
 				case '+'
 					if (left_==right_-1) {
 						oc=OC_ONE_OR_MORE_GREEDY : len_=1 : strbuf="+"
@@ -665,17 +676,13 @@
 						} else {oc=OC_ONE_OR_MORE_GREEDY : len_=1 : strbuf="+"}
 					}
 					newmod node_, Node_regExp, oc, strbuf, 0,0, NULL,NULL
-					swbreak
+					return oc
 				default
-					oc=OC_INVALID : errIdx_=left_
+					errIdx_=left_ : return OC_INVALID
 			swend
-		}
 		
-		#ifdef DEBUGMODE
-			if (oc!=OC_INVALID) {assertEx (varuse(node_))}
-		#endif
-		
-		return oc
+		assert (FALSE)
+		return
 	
 	#deffunc local delete_tree_ int addr_, local addr_left, local addr_right	//delete_tree から呼ばれる再帰関数
 		/*
@@ -697,7 +704,7 @@
 		delete_tree_ addr_root
 		return
 	
-	#defcfunc local build_tree var tgt_, int left_, int right_, var errIdx_, local oc1, local oc2, local oc3, local len1, local len2, local len3, local node1, local node2, local node3, local left, local right, local addr_left, local addr_right	//構文木作成。regExp_setPat() から呼ばれる再帰関数
+	#defcfunc local build_tree var tgt_, int left_, int right_, var errIdx_, local oc1, local oc2, local oc3, local len1, local len2, local len3, local node1, local node2, local node3, local left, local right, local addr_left, local addr_right, local strbuf	//構文木作成。regExp_setPat() から呼ばれる再帰関数
 		/*
 			tgt_ : 正規表現パターン全文(変数)
 			left_, right_ : 解析開始,終了位置(終了位置は解析対象に含まれない)
@@ -715,7 +722,7 @@
 		oc1=get_one_oc(tgt_, left_, right_, len1, node1, errIdx_) : if (oc1==OC_INVALID) {return NULL}	//1つ目のオペコード
 		
 		//左オペランド必須の演算子ならエラー
-		if ((oc1==OC_OR)||(oc1==OC_ZERO_OR_ONE)||(oc1==OC_ZERO_OR_MORE)||(oc1==OC_ZERO_OR_MORE_GREEDY)||(oc1==OC_ONE_OR_MORE)||(oc1==OC_ONE_OR_MORE_GREEDY)||(oc1==OC_N)||(oc1==OC_N_)||(oc1==OC_NM)) {
+		if (dont_need_left_operand(oc1)==FALSE) {
 			errIdx_=left_ : return NULL
 		}
 		
@@ -726,24 +733,26 @@
 				return stat
 			}
 			if (dont_need_left_operand(oc1)) {
-				if (oc1==OC_CAPTURE) {
-					//キャプチャ回避の可能性
-					if (left_<=right_-4) {
-						if (strmid(tgt_, left_+1, 2)=="?:") {	//キャプチャ回避
-							return build_tree(tgt_, left_+3, right_-1, errIdx_)
-						}
-					}
-					//キャプチャする場合
-					addr_left=build_tree(tgt_, left_+1, right_-1, errIdx_)
-					if (addr_left==NULL) {return NULL}
-					newmod tree, Node_regExp, OC_CAPTURE, "()", 0,0, addr_left,NULL	//OC_CAPTURE は左ノードのみ使う
-					return stat
-				} else {
-					newmod tree, Node_regExp, oc1, get_string@Node_regExp(node1), 0,0, NULL,NULL
-					return stat
-				}
+				switch oc1
+					case OC_PACK
+						return build_tree(tgt_, left_+3, right_-1, errIdx_)
+					case OC_POSITIVE_LOOKAHEAD
+						addr_left=build_tree(tgt_, left_+3, right_-1, errIdx_)
+						if (addr_left==NULL) {return NULL}
+						newmod tree, Node_regExp, oc1, "(?=)", 0,0, addr_left,NULL	//左ノードのみ使う
+						return stat
+					case OC_CAPTURE
+						addr_left=build_tree(tgt_, left_+1, right_-1, errIdx_)
+						if (addr_left==NULL) {return NULL}
+						newmod tree, Node_regExp, oc1, "()", 0,0, addr_left,NULL	//左ノードのみ使う
+						return stat
+					default
+						newmod tree, Node_regExp, oc1, get_string@Node_regExp(node1), 0,0, NULL,NULL
+						return stat
+				swend
+				assertEx (FALSE)
 			}
-			assert (FALSE)
+			assertEx (FALSE)
 		} else {
 			left=left_+len1
 			oc2=get_one_oc(tgt_, left, right_, len2, node2, errIdx_) :  : if (oc2==OC_INVALID) {return NULL}	//2つ目のオペコード
@@ -900,7 +909,7 @@
 					return 1
 			swend
 		
-		//左オペランドをもつパターン
+		//左ノードをもつパターン
 			addr_left=get_addr_left@Node_regExp(thisnode) : assertEx (addr_left!=NULL)
 			addr_right=get_addr_right@Node_regExp(thisnode)
 			
@@ -1075,6 +1084,11 @@
 				
 				return len_match+len_match_right
 			}
+			if (oc==OC_POSITIVE_LOOKAHEAD) {
+				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
+				assertEx (left_+len_match_left<=right_)
+				return limit(len_match_left, -1,0)
+			}
 			if (oc==OC_CAPTURE) {
 				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
 				assertEx (left_+len_match_left<=right_)
@@ -1174,9 +1188,9 @@ init@mod_regExp
 	#undef OC_NOT_SPACE
 	#undef OC_ANY_DIGIT
 	#undef OC_NOT_DIGIT
+	#undef OC_ANY
 	#undef OC_BOUND
 	#undef OC_NOT_BOUND
-	#undef OC_ANY
 	#undef OC_LINEHEAD
 	#undef OC_LINEEND
 	#undef OC_JOIN
@@ -1191,5 +1205,7 @@ init@mod_regExp
 	#undef OC_NM
 	#undef OC_SET
 	#undef OC_ANTI_SET
+	#undef OC_PACK
+	#undef OC_POSITIVE_LOOKAHEAD
 	#undef OC_CAPTURE
 	#undef OC_DUMMY

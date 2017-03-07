@@ -95,7 +95,7 @@
 	if (oc!=OC_INVALID) {mes "code = "+get_string@Node_regExp(node)}
 #endif
 
-#if TRUE
+#if FALSE
 	//tgt="ABC|DEF"
 	//tgt="AB?CD?EF"
 	//tgt="(A|B)C"
@@ -114,8 +114,7 @@
 	//tgt="Ç®Å["
 	//tgt="(Ç†Ç¢Ç§|Ç¶Ç®)Ç©Ç´"
 	//tgt="\\b\\s+?"
-	tgt="\\((.+[^)])\\)"
-	//tgt="\\((.+?)\\)"
+	tgt="\\((?=.+[^)])\\)"
 	errIdx=0
 	if (regExp_setPat(tgt, errIdx)) {
 		mes "ç\ï∂ñÿÅ´"
@@ -169,7 +168,7 @@
 	}
 #endif
 
-#if FALSE
+#if TRUE
 	tgt="Windows95" : pat="W(indows|INDOWS) ?9(?:[58])"
 	errIdx=0
 	if (regExp_setPat(pat, errIdx)) {
