@@ -116,7 +116,8 @@
 	//tgt="\\b\\s+?"
 	//tgt="\\((?=.+[^)])\\)"
 	//tgt="(?!a)"
-	tgt="(?<=a)"
+	//tgt="(?<=a)"
+	tgt="\\b\\w+?_\\w+?\\b"
 	errIdx=0
 	if (regExp_setPat(tgt, errIdx)) {
 		mes "\•¶–Ø«"

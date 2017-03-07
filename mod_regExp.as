@@ -334,7 +334,7 @@
 		
 		return OC_NM
 	
-	#defcfunc local parse_in_boxBrackets var tgt_, int left_, int right_, var charSet_, var errIdx_, local oc, local left, local left2, local char, local c1, local c2, local strbuf, local c	//[]内のパース
+	#defcfunc local parse_in_boxBrackets var tgt_, int left_, int right_, var charSet_, var errIdx_, local oc, local left, local left2, local char, local char2, local c1, local c2, local strbuf, local c	//[]内のパース
 		/*
 			tgt_ : ターゲット文字列(変数)
 			left_, right_ : パース開始,終了位置
@@ -363,9 +363,33 @@
 			char=peek(tgt_, left2)
 			if (char='\\') {
 				if (left2==right_-1) {oc=OC_INVALID : errIdx_=left2 : break}	//\の右が空
-				strbuf="" : poke strbuf, 0, convert_escaped_char(peek(tgt_, left2+1))
-				charSet_+=strbuf
-				left2+=2
+				char2=peek(tgt_, left2+1)
+				switch char2
+					case 'w'
+						sdim strbuf, 26*2+10+1 +1
+						repeat 26 : poke strbuf, cnt, 'a'+cnt : loop
+						repeat 26 : poke strbuf, 26+cnt, 'A'+cnt : loop
+						repeat 10 : poke strbuf, 52+cnt, '0'+cnt : loop
+						poke strbuf, 62, '_'
+						charSet_+=strbuf
+						swbreak
+					case 'd'
+						sdim strbuf, 10 +1
+						repeat 10 : poke strbuf,cnt,'0'+cnt : loop
+						swbreak
+					case 's'
+						sdim strbuf, 3 +1
+						poke strbuf,0,' '
+						poke strbuf,1,'\t'
+						poke strbuf,2,'\r'
+						poke strbuf,3,10
+						charSet_+=strbuf
+						swbreak
+					default
+						strbuf="" : poke strbuf, 0, convert_escaped_char(char2)
+						charSet_+=strbuf
+						left2+=2
+				swend
 				continue
 			}
 			if (char=='-') {
