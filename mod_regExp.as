@@ -604,7 +604,7 @@
 					//‘Î‰ž‚·‚é } ‚ð’T‚·
 					right2=find_close_bracket(tgt_, '}', left_+1, right_, FALSE)
 					if (right2==-1) {errIdx_=left_ : return OC_INVALID}
-					en_=right2+1-left_
+					len_=right2+1-left_
 					if (len_<=2) {errIdx_=left_ : return OC_INVALID}	//’†g‚ª‹ó
 					
 					oc=parse_in_braces(tgt_, left_+1, right2, n,m, errIdx_)
