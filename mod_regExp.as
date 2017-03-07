@@ -371,7 +371,6 @@
 						repeat 26 : poke strbuf, 26+cnt, 'A'+cnt : loop
 						repeat 10 : poke strbuf, 52+cnt, '0'+cnt : loop
 						poke strbuf, 62, '_'
-						charSet_+=strbuf
 						swbreak
 					case 'd'
 						sdim strbuf, 10 +1
@@ -383,13 +382,12 @@
 						poke strbuf,1,'\t'
 						poke strbuf,2,'\r'
 						poke strbuf,3,10
-						charSet_+=strbuf
 						swbreak
 					default
 						strbuf="" : poke strbuf, 0, convert_escaped_char(char2)
-						charSet_+=strbuf
-						left2+=2
 				swend
+				charSet_+=strbuf
+				left2+=2
 				continue
 			}
 			if (char=='-') {
