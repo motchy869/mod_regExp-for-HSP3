@@ -1,6 +1,6 @@
 mod_regExp
 HSP3用正規表現モジュール(SJIS専用)
-ver 1.1.0
+ver 1.1.1
 
 
 HSP3用 Shift-JIS 専用正規表現モジュール。

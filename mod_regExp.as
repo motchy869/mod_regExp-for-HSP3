@@ -6,12 +6,12 @@
 	ver 1.1.0
 */
 
-//#define global DEBUGMODE
+#define global DEBUGMODE
 
 #ifdef DEBUGMODE
 	#define global assertEx(%1)	assert (%1)
 #else
-	#define global assertEx(%1)	assert (1)
+	#define global assertEx(%1) if(0){}	//たぶん最適化で消える
 #endif
 
 #define global TRUE		1
@@ -224,7 +224,7 @@
 		if (addr_==NULL) {return FALSE}
 		return varuse(tree(addr_))
 	
-	#defcfunc local find_close_bracket var tgt_, int code_, int left_, int right_, int char_set_mode_, local left, local idx, local depth, local char	//対応する閉じ括弧の検索
+	#defcfunc local find_close_bracket var tgt_, int code_, int left_, int right_, int char_set_mode_, local char_set_mode, local left, local idx, local depth, local char	//対応する閉じ括弧の検索
 		/*
 			tgt_ : ターゲット文字列(変数)
 			code_ : 閉じ括弧の文字コード
@@ -238,24 +238,38 @@
 		assertEx ((left_>=0)&&(right_>=0)&&(left_<=right_))
 		assertEx (right_<=strlen(tgt_))
 		assertEx (is_valid_sjis_string(tgt_, left_, right_))
+		
+		char_set_mode=char_set_mode_
 	
 		idx=-1 : depth=1 : left=left_
 		repeat
 			if (left==right_) {break}
 			char=peek(tgt_, left)
-			if (is_first_byte_of_zenkaku(char)) {left+=2 : continue}
+			
 			if (char=='\\') {
 				if (left==right_-1) {break}	//\ の右が空
 				left+=2
 				continue
 			}
-			if (char_set_mode_) {
-				if ((depth==1)&&(char==code_)) {idx=left : break}
-			} else {
-				if (is_open_bracket(char)) {depth++}
-				if ((depth==1)&&(char==code_)) {idx=left : break}
-				if (is_close_bracket(char)) {depth--}
+			if (char_set_mode) {
+				if (char==']') {
+					if ((depth==1)&&(code_==']')) {idx=left : break}
+					depth--
+					char_set_mode=FALSE
+				}
+				left++
+				continue
 			}
+			if (is_first_byte_of_zenkaku(char)) {left+=2 : continue}
+			if (char=='[') {
+				depth++
+				char_set_mode=TRUE
+				left++
+				continue
+			}
+			if (is_open_bracket(char)) {depth++}
+			if ((depth==1)&&(char==code_)) {idx=left : break}
+			if (is_close_bracket(char)) {depth--}
 			left++
 		loop
 		return idx
