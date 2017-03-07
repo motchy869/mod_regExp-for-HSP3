@@ -49,6 +49,8 @@
 	#enum global OC_PACK	//(?:) 更に解析、分解され、最終的な構文木には残らない。
 	#enum global OC_POSITIVE_LOOKAHEAD	//(?=)
 	#enum global OC_NEGATIVE_LOOKAHEAD	//(?!)
+	#enum global OC_POSITIVE_LOOKBEHIND	//(?<=)
+	#enum global OC_NEGATIVE_LOOKBEHIND	//(?<!)
 	#enum global OC_CAPTURE	//キャプチャ
 	#enum global OC_DUMMY
 
@@ -221,7 +223,7 @@
 		return flg
 	
 	#defcfunc local dont_need_left_operand int oc_	//左オペランド不要か?
-		return ((oc_==OC_SIMPLE)||(oc_==OC_ANY_ENG_LET)||(oc_==OC_NOT_ENG_LET)||(oc_==OC_ANY_SPACE)||(oc_==OC_NOT_SPACE)||(oc_==OC_ANY_DIGIT)||(oc_==OC_NOT_DIGIT)||(oc_==OC_ANY)||(oc_==OC_BOUND)||(oc_==OC_NOT_BOUND)||(oc_==OC_LINEHEAD)||(oc_==OC_LINEEND)||(oc_==OC_SET)||(oc_==OC_ANTI_SET)||(oc_==OC_PACK)||(oc_==OC_POSITIVE_LOOKAHEAD)||(oc_==OC_NEGATIVE_LOOKAHEAD)||(oc_==OC_CAPTURE))
+		return ((oc_==OC_SIMPLE)||(oc_==OC_ANY_ENG_LET)||(oc_==OC_NOT_ENG_LET)||(oc_==OC_ANY_SPACE)||(oc_==OC_NOT_SPACE)||(oc_==OC_ANY_DIGIT)||(oc_==OC_NOT_DIGIT)||(oc_==OC_ANY)||(oc_==OC_BOUND)||(oc_==OC_NOT_BOUND)||(oc_==OC_LINEHEAD)||(oc_==OC_LINEEND)||(oc_==OC_SET)||(oc_==OC_ANTI_SET)||(oc_==OC_PACK)||(oc_==OC_POSITIVE_LOOKAHEAD)||(oc_==OC_NEGATIVE_LOOKAHEAD)||(oc_==OC_POSITIVE_LOOKBEHIND)||(oc_==OC_NEGATIVE_LOOKBEHIND)||(oc_==OC_CAPTURE))
 
 	#defcfunc local node_exists int addr_	//(デバッグ用)そのノードが存在するか
 		if (addr_==NULL) {return FALSE}
@@ -586,17 +588,29 @@
 					//( ), (?:), (?=), (?!) のどれか?
 					char=peek(tgt_, left_+1)
 					if (char=='?') {
-						if (len_<=4) {errIdx_=left_+1 : return OC_INVALID}	//(?), (?:), (?=) 等
+						if (len_<=4) {errIdx_=left_+len_-1 : return OC_INVALID}	//(?), (?:), (?=) 等
 						char=peek(tgt_, left_+2)
-						switch char
-							case ':' : oc=OC_PACK : swbreak
-							case '=' : oc=OC_POSITIVE_LOOKAHEAD : swbreak
-							case '!' : oc=OC_NEGATIVE_LOOKAHEAD : swbreak
-							default
-								errIdx_=left_+2 : return OC_INVALID
-						swend
-						newmod node_, Node_regExp, oc, strmid(tgt_, left_, len_), 0,0, NULL,NULL
-						return oc
+						if ((char==':')||(char=='=')||(char=='!')) {
+							switch char
+								case ':' : oc=OC_PACK : swbreak
+								case '=' : oc=OC_POSITIVE_LOOKAHEAD : swbreak
+								case '!' : oc=OC_NEGATIVE_LOOKAHEAD : swbreak
+							swend
+							newmod node_, Node_regExp, oc, strmid(tgt_, left_, len_), 0,0, NULL,NULL
+							return oc
+						}
+						if (char=='<') {
+							if (len_<=5) {errIdx_=left_+len_-1}	//(?<), (?<=) 等
+							char=peek(tgt_, left_+3)
+							switch char
+								case '=' : oc=OC_POSITIVE_LOOKBEHIND : swbreak
+								case '!' : oc=OC_NEGATIVE_LOOKBEHIND : swbreak
+								default : errIdx_=left_+3 : return OC_INVALID
+							swend
+							newmod node_, Node_regExp, oc, strmid(tgt_, left_, len_), 0,0, NULL,NULL
+							return oc
+						}
+						errIdx_=left_+2 : return OC_INVALID
 					}
 					newmod node_, Node_regExp, OC_CAPTURE, strmid(tgt_, left_, len_), 0,0, NULL,NULL
 					return OC_CAPTURE
@@ -748,6 +762,16 @@
 						if (addr_left==NULL) {return NULL}
 						newmod tree, Node_regExp, oc1, "(?!)", 0,0, addr_left,NULL
 						return stat
+					case OC_POSITIVE_LOOKBEHIND
+						addr_left=build_tree(tgt_, left_+4, right_-1, errIdx_)
+						if (addr_left==NULL) {return NULL}
+						newmod tree, Node_regExp, oc1, "(?<=)", 0,0, addr_left,NULL
+						return stat
+					case OC_NEGATIVE_LOOKBEHIND
+						addr_left=build_tree(tgt_, left_+4, right_-1, errIdx_)
+						if (addr_left==NULL) {return NULL}
+						newmod tree, Node_regExp, oc1, "(?<!)", 0,0, addr_left,NULL
+						return stat
 					case OC_CAPTURE
 						addr_left=build_tree(tgt_, left_+1, right_-1, errIdx_)
 						if (addr_left==NULL) {return NULL}
@@ -833,6 +857,277 @@
 		if (varuse(tree(addr_root))) {return TRUE}
 		return FALSE
 	
+	#defcfunc local match_leftward var tgt_, int left_, int right_, int addr_, var capt_info_, local thisnode, local oc, local x, local strbuf, local char, local char2, local addr_left, local addr_right, local len_match_left, local len_match_right, local len_match, local left, local best_record_left, local count_match_left	//match_() から呼ばれる再帰関数
+		/*
+			match_() の探索の向きを逆にしたもの
+			
+			tgt_ : ターゲット文字列全文
+			left_, right_ : 判定左端,右端位置(右端は解析対象に含まれない)
+			addr_ : 構文木のノードのアドレス
+			capt_info_ : Capt_info 型モジュール変数。初期化して渡すこと。
+			
+			[動作]
+				addr_ ノード以下が tgt_ の right_ を右端としてマッチするかどうか調べる
+			
+			[戻り値]
+				(-1,larger) : (一致なし, 一致した長さ)
+		*/
+		assertEx ((left_>=0)&&(right_>=0)&&(left_<=right_))	//行末の $ オペレータに対しては left_==right_ となり得る
+		assertEx (right_<=strlen(tgt_))
+		
+		dup thisnode, tree(addr_)
+		oc=get_oc@Node_regExp(thisnode)
+		assertEx (oc!=OC_INVALID)
+		
+		//自身が葉ノードであるパターン
+		switch oc
+			case OC_SIMPLE
+				if (left_==right_) {return -1}
+				strbuf=get_string@Node_regExp(thisnode)
+				x=strlen(strbuf)
+				if (x>right_-left_) {return -1}
+				if (strbuf==strmid(tgt_, right_-x, x)) {return x}
+				return -1
+			case OC_ANY_ENG_LET
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_eng_letter(char)) {return 1}
+					return -1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return -1}
+				if (is_eng_letter(char)) {return 1}
+				return -1
+			case OC_NOT_ENG_LET
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_eng_letter(char)) {return -1}
+					return 1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return 2}
+				if (is_eng_letter(char)) {return -1}
+				return 1
+			case OC_ANY_SPACE
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_space(char)) {return 1}
+					return -1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return -1}
+				if (is_space(char)) {return 1}
+				return -1
+			case OC_NOT_SPACE
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_space(char)) {return -1}
+					return 1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return 2}
+				if (is_space(char)) {return -1}
+				return 1
+			case OC_ANY_DIGIT
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_number(char)) {return 1}
+					return -1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return -1}
+				if (is_number(char)) {return 1}
+				return -1
+			case OC_NOT_DIGIT
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_number(char)) {return -1}
+					return 1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return 2}
+				if (is_number(char)) {return -1}
+				return 1
+			case OC_BOUND
+				if (left_==right_) {return 0}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_space(char)) {return 1}
+					return -1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return -1}
+				if (is_space(char)) {return 1}
+				return -1
+			case OC_NOT_BOUND
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_space(char)) {return -1}
+					return 1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return 2}
+				if (is_space(char)) {return -1}
+				return 1
+			case OC_ANY
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {return 1}	//左に1文字しか余裕がない
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return 2}
+				return 1
+			case OC_LINEHEAD
+				if (right_==0) {return 0}
+				if (peek(tgt_, right_-1)==10) {return 0}
+				return -1
+			case OC_LINEEND
+				if (right_==strlen(tgt_)) {return 0}
+				char=peek(tgt_, right_-1)
+				if ((char==13)||(char==10)) {return 0}
+				return -1
+			case OC_SET
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_char_in_set@Node_regExp(thisnode, char)) {return 1}
+					return -1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return -1}
+				if (is_char_in_set@Node_regExp(thisnode, char)) {return 1}
+				return -1
+			case OC_ANTI_SET
+				if (left_==right_) {return -1}
+				char=peek(tgt_, right_-1)
+				if (left_==right_-1) {	//左に1文字しか余裕がない
+					if (is_char_in_set@Node_regExp(thisnode, char)) {return -1}
+					return 1
+				}
+				//左に2文字以上余裕がある
+				char2=peek(tgt_, right_-2)
+				if (is_first_byte_of_zenkaku(char2)) {return 2}
+				if (is_char_in_set@Node_regExp(thisnode, char)) {return -1}
+				return 1
+		swend
+		
+		//左ノードをもつパターン
+		addr_left=get_addr_left@Node_regExp(thisnode) : assertEx (addr_left!=NULL)
+		addr_right=get_addr_right@Node_regExp(thisnode)
+		
+		if (oc==OC_JOIN) {
+			assertEx (addr_right!=NULL)
+			len_match_right=match_leftward(tgt_, left_, right_, addr_right, capt_info_)
+			assertEx (left_<=right_-len_match_right)
+			if (len_match_right==-1) {return -1}
+			len_match_left=match_leftward(tgt_, left_, right_-len_match_right, addr_left, capt_info_)
+			assertEx (left_<=right_-len_match_right-len_match_left)
+			if (len_match_left==-1) {return -1}
+			return len_match_left+len_match_right
+		}
+		if (oc==OC_OR) {
+			assertEx (addr_right!=NULL)
+			len_match_right=match_leftward(tgt_, left_, right_, addr_right, capt_info_)
+			len_match_left=match_leftward(tgt_, left_, right_, addr_left, capt_info_)
+			assertEx ((left_+len_match_left<=right_)&&(left_+len_match_right<=right_))
+			if ((len_match_left==-1)&&(len_match_right==-1)) {return -1}
+			if (len_match_left>len_match_right) {return len_match_left}
+			return len_match_right
+		}
+		if (oc==OC_ZERO_OR_ONE) {
+			if (addr_right==NULL) {
+				len_match_right=0
+			} else {
+				len_match_right=match_leftward(tgt_, left_, right_, addr_right, capt_info_)
+				if (len_match_right==-1) {return -1}
+			}
+			assertEx (left_<=right_-len_match_right)
+			
+			len_match_left=limit(match_leftward(tgt_, left_, right_-len_match_right, addr_left, capt_info_), 0)
+			assertEx (left_+len_match_left<=right_)
+			return len_match_left+len_match_right
+		}
+		if ((oc==OC_ZERO_OR_MORE)||(oc==OC_ONE_OR_MORE)||(oc==OC_ZERO_OR_MORE_GREEDY)||(oc==OC_ONE_OR_MORE_GREEDY)) {
+			if (addr_right==NULL) {
+				len_match_right=0
+			} else {
+				len_match_right=match_leftward(tgt_, left_, right_, addr_right, capt_info_)
+				if (len_match_right==-1) {return -1}
+			}
+			assertEx (left_<=right_-len_match_right)
+			
+			best_record_left=right_-len_match_right	//左オペランドがマッチした左端の最高記録
+			count_match_left=0	//左オペランドがマッチした回数
+			repeat
+				len_match_left=match_leftward(tgt_, left_, best_record_left, addr_left, capt_info_)
+				assertEx (left_<=best_record_left-len_match_left)
+				if (len_match_left==-1) {break}
+				count_match_left++
+				best_record_left-=len_match_left
+			loop
+			assertEx (left_<=best_record_left)
+			if (((oc==OC_ONE_OR_MORE)||(OC_ONE_OR_MORE_GREEDY))&&(count_match_left==0)) {return -1}
+			return right_-best_record_left
+		}
+		if ((oc==OC_N)||(oc==OC_N_)||(oc==OC_NM)) {
+			if (addr_right==NULL) {
+				len_match_right=0
+			} else {
+				len_match_right=match_leftward(tgt_, left_, right_, addr_right, capt_info_)
+				if (len_match_right==-1) {return -1}
+			}
+			assertEx (left_<=right_-len_match_right)
+			
+			//左オペランドの繰り返し回数のチェック
+			best_record_left=right_-len_match_right	//左オペランドがマッチした左端の最高記録
+			count_match_left=0	//左オペランドがマッチした回数
+			repeat
+				len_match_left=match_leftward(tgt_, left_, best_record_left, addr_left, capt_info_)
+				assertEx (left_<=best_record_left-len_match_left)
+				if (len_match_left==-1) {break}
+				count_match_left++
+				best_record_left-=len_match_left
+			loop
+			switch oc
+				case OC_N : if (count_match_left!=get_n@Node_regExp(thisnode)) {return -1}
+				case OC_N_ : if (count_match_left<get_n@Node_regExp(thisnode)) {return -1}
+				case OC_NM : if ((count_match_left<get_n@Node_regExp(thisnode))||(count_match_left>get_m@Node_regExp(thisnode))) {return -1}
+				default
+					assertEx (FALSE)
+			swend
+			assertEx (left_<=best_record_left)
+			return best_record_left
+		}
+		if ((oc==OC_POSITIVE_LOOKAHEAD)||(oc==OC_NEGATIVE_LOOKAHEAD)||(oc==OC_POSITIVE_LOOKBEHIND)||(oc==OC_NEGATIVE_LOOKBEHIND)) {
+			return -1	//判定不可能
+		}
+		if (oc==OC_CAPTURE) {
+			len_match_left=match_leftward(tgt_, left_, right_, addr_left, capt_info_)
+			assertEx (left_<=right_-len_match_left)
+			if (len_match_left==-1) {return -1}
+			add@Capt_info_regExp capt_info_, right_-len_match_left, len_match_left
+			return len_match_left
+		}
+		
+		assertEx (FALSE)
+		return
+	
 	#defcfunc local match_ var tgt_, int left_, int right_, int addr_, var capt_info_, local thisnode, local oc, local strbuf, local char, local addr_left, local addr_right, local len_match_left, local len_match_right, local len_match, local left, local best_record_left2, local best_record_len_match_right, local count_match	//regExp_match() から呼ばれる再帰関数
 		/*
 			tgt_ : ターゲット文字列全文
@@ -846,7 +1141,7 @@
 			[戻り値]
 				(-1,larger) : (一致なし, 一致した長さ)
 		*/
-		assertEx ((left_>=0)&&(right_>=0)&&(left_<=right_))	//行末の $ オペレータに対しては left_==right_ となり得る
+		assertEx ((left_>=0)&&(right_>=0)&&(left_<=right_))	//行末の $ オペレータに対しては left_==right_==strlen(tgt_) となり得る
 		assertEx (right_<=strlen(tgt_))
 		
 		dup thisnode, tree(addr_)
@@ -854,271 +1149,281 @@
 		assertEx (oc!=OC_INVALID)
 		
 		//自身が葉ノードであるパターン
-			switch oc
-				case OC_SIMPLE
-					if (left_==right_) {return -1}
-					strbuf=get_string@Node_regExp(thisnode)
-					if (strlen(strbuf)>right_-left_) {return -1}
-					if (0==instr(tgt_, left_, strbuf)) {return strlen(strbuf)}
-					return -1
-				case OC_ANY_ENG_LET
-					if (left_==right_) {return -1}
-					if (is_eng_letter(peek(tgt_, left_))) {return 1}
-					return -1
-				case OC_NOT_ENG_LET
-					if (left_==right_) {return -1}
-					char=peek(tgt_, left_)
-					if (is_eng_letter(char)) {return -1}
-					if (is_first_byte_of_zenkaku) {return 2}
-					return 1
-				case OC_ANY_SPACE
-					if (left_==right_) {return -1}
-					if (is_space(peek(tgt_, left_))) {return 1}
-					return -1
-				case OC_NOT_SPACE
-					if (left_==right_) {return -1}
-					char=peek(tgt_, left_)
-					if (is_space(char)) {return -1}
-					if (is_first_byte_of_zenkaku(char)) {return 2}
-					return 1
-				case OC_ANY_DIGIT
-					if (left_==right_) {return -1}
-					if (is_number(peek(tgt_, left_))) {return 1}
-					return -1
-				case OC_NOT_DIGIT
-					if (left_==right_) {return -1}
-					char=peek(tgt_, left_)
-					if (is_number(char)) {return -1}
-					if (is_first_byte_of_zenkaku(char)) {return 2}
-					return 1
-				case OC_BOUND
-					if (left_==right_) {return 0}
-					if (is_space(peek(tgt_, left_))) {return 1}
-					return -1
-				case OC_NOT_BOUND
-					if (left_==right_) {return -1}
-					char=peek(tgt_, left_)
-					if (is_space(char)) {return -1}
-					if (is_first_byte_of_zenkaku(char)) {return 2}
-					return 1
-				case OC_ANY
-					if (left_==right_) {return -1}
-					if (is_first_byte_of_zenkaku(peek(tgt_, left_))) {return 2}
-					return 1
-				case OC_LINEHEAD
-					if (left_==0) {return 0}
-					if (peek(tgt_, left_-1)==10) {return 0}
-					return -1
-				case OC_LINEEND
-					if (left_==right_) {return 0}
-					char=peek(tgt_, left_)
-					if ((char=='\r')||(char==10)) {return 0}
-					return -1
-				case OC_SET
-					if (left_==right_) {return -1}
-					if (is_char_in_set@Node_regExp(thisnode, peek(tgt_, left_))) {return 1}
-					return -1
-				case OC_ANTI_SET
-					if (left_==right_) {return -1}
-					char=peek(tgt_, left_)
-					if (is_char_in_set@Node_regExp(thisnode, char)) {return -1}
-					if (is_first_byte_of_zenkaku(peek(tgt_, left_))) {return 2}
-					return 1
-			swend
+		switch oc
+			case OC_SIMPLE
+				if (left_==right_) {return -1}
+				strbuf=get_string@Node_regExp(thisnode)
+				if (strlen(strbuf)>right_-left_) {return -1}
+				if (0==instr(tgt_, left_, strbuf)) {return strlen(strbuf)}
+				return -1
+			case OC_ANY_ENG_LET
+				if (left_==right_) {return -1}
+				if (is_eng_letter(peek(tgt_, left_))) {return 1}
+				return -1
+			case OC_NOT_ENG_LET
+				if (left_==right_) {return -1}
+				char=peek(tgt_, left_)
+				if (is_eng_letter(char)) {return -1}
+				if (is_first_byte_of_zenkaku) {return 2}
+				return 1
+			case OC_ANY_SPACE
+				if (left_==right_) {return -1}
+				if (is_space(peek(tgt_, left_))) {return 1}
+				return -1
+			case OC_NOT_SPACE
+				if (left_==right_) {return -1}
+				char=peek(tgt_, left_)
+				if (is_space(char)) {return -1}
+				if (is_first_byte_of_zenkaku(char)) {return 2}
+				return 1
+			case OC_ANY_DIGIT
+				if (left_==right_) {return -1}
+				if (is_number(peek(tgt_, left_))) {return 1}
+				return -1
+			case OC_NOT_DIGIT
+				if (left_==right_) {return -1}
+				char=peek(tgt_, left_)
+				if (is_number(char)) {return -1}
+				if (is_first_byte_of_zenkaku(char)) {return 2}
+				return 1
+			case OC_BOUND
+				if (left_==right_) {return 0}
+				if (is_space(peek(tgt_, left_))) {return 1}
+				return -1
+			case OC_NOT_BOUND
+				if (left_==right_) {return -1}
+				char=peek(tgt_, left_)
+				if (is_space(char)) {return -1}
+				if (is_first_byte_of_zenkaku(char)) {return 2}
+				return 1
+			case OC_ANY
+				if (left_==right_) {return -1}
+				if (is_first_byte_of_zenkaku(peek(tgt_, left_))) {return 2}
+				return 1
+			case OC_LINEHEAD
+				if (left_==0) {return 0}
+				if (peek(tgt_, left_-1)==10) {return 0}
+				return -1
+			case OC_LINEEND
+				if (left_==strlen(tgt_)) {return 0}
+				assertEx (left_<right_)
+				char=peek(tgt_, left_)
+				if ((char=='\r')||(char==10)) {return 0}
+				return -1
+			case OC_SET
+				if (left_==right_) {return -1}
+				if (is_char_in_set@Node_regExp(thisnode, peek(tgt_, left_))) {return 1}
+				return -1
+			case OC_ANTI_SET
+				if (left_==right_) {return -1}
+				char=peek(tgt_, left_)
+				if (is_char_in_set@Node_regExp(thisnode, char)) {return -1}
+				if (is_first_byte_of_zenkaku(peek(tgt_, left_))) {return 2}
+				return 1
+		swend
 		
 		//左ノードをもつパターン
-			addr_left=get_addr_left@Node_regExp(thisnode) : assertEx (addr_left!=NULL)
-			addr_right=get_addr_right@Node_regExp(thisnode)
+		addr_left=get_addr_left@Node_regExp(thisnode) : assertEx (addr_left!=NULL)
+		addr_right=get_addr_right@Node_regExp(thisnode)
+		
+		if (oc==OC_JOIN) {
+			assertEx (addr_right!=NULL)
+			len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
+			assertEx (left_+len_match_left<=right_)
+			if (len_match_left==-1) {return -1}
+			len_match_right=match_(tgt_, left_+len_match_left, right_, addr_right, capt_info_)
+			assertEx (left_+len_match_left+len_match_right<=right_)
+			if (len_match_right==-1) {return -1}
+			return len_match_left+len_match_right
+		}
+		if (oc==OC_OR) {
+			assertEx (addr_right!=NULL)
+			len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
+			len_match_right=match_(tgt_, left_, right_, addr_right, capt_info_)
+			assertEx ((left_+len_match_left<=right_)&&(left_+len_match_right<=right_))
+			if ((len_match_left==-1)&&(len_match_right==-1)) {return -1}
+			if (len_match_left>len_match_right) {return len_match_left}
+			return len_match_right
+		}
+		if (oc==OC_ZERO_OR_ONE) {
+			/*
+				tgt_="a"
+				pattern=".?a"
+				
+				のような病理的なケースにも対処せなばならぬ
+			*/
+			len_match_left=limit(match_(tgt_, left_, right_, addr_left, capt_info_), 0)
+			assertEx (left_+len_match_left<=right_)
 			
-			if (oc==OC_JOIN) {
-				assertEx (addr_right!=NULL)
-				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
-				if (len_match_left==-1) {return -1}
-				len_match_right=match_(tgt_, left_+len_match_left, right_, addr_right, capt_info_)
-				if (len_match_right==-1) {return -1}
-				return len_match_left+len_match_right
-			}
-			if (oc==OC_OR) {
-				assertEx (addr_right!=NULL)
-				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
-				len_match_right=match_(tgt_, left_, right_, addr_right, capt_info_)
-				assertEx ((left_+len_match_left<=right_)&&(left_+len_match_right<=right_))
-				if ((len_match_left==-1)&&(len_match_right==-1)) {return -1}
-				if (len_match_left>len_match_right) {return len_match_left}
-				return len_match_right
-			}
-			if (oc==OC_ZERO_OR_ONE) {
-				/*
-					tgt_="a"
-					pattern=".?a"
-					
-					のような病理的なケースにも対処せなばならぬ
-				*/
-				len_match_left=limit(match_(tgt_, left_, right_, addr_left, capt_info_), 0)
-				assertEx (left_+len_match_left<=right_)
-				
-				if (addr_right==NULL) {return len_match_left}
-				len_match_right=match_(tgt_, left_+len_match_left, right_, addr_right, capt_info_)
-				if (len_match_right==-1) {
-					len_match_right=match_(tgt_, left_, right_, addr_right, capt_info_)	//左オペランドを無視してもう一度試す
-					if (len_match_right>=0) {return len_match_right}
-					return -1
-				}
-				assertEx (left_+len_match_left+len_match_right<=right_)
-				return len_match_left+len_match_right
-			}
-			if ((oc==OC_ZERO_OR_MORE)||(oc==OC_ONE_OR_MORE)) {
-				/*
-					tgt_="a"
-					pattern=".*?a"
-					
-					のような病理的なケースにも対処せなばならぬ
-				*/
-				//OC_ZERO_OR_MORE については左オペランド無視で試す
-				if (oc==OC_ZERO_OR_MORE) {
-					if (addr_right==NULL) {return 0}	//もうそれでいい
-					len_match_right=match_(tgt_, left_, right_, addr_right, capt_info_)
-					if (len_match_right>=0) {return len_match_right}	//もうそれでいい
-				}
-				
-				left=left_
-				repeat
-					if (left==right_) {len_match=-1 : break}
-					
-					len_match_left=match_(tgt_, left, right_, addr_left, capt_info_)
-					assertEx (left+len_match_left<=right_)
-					
-					if (len_match_left>=0) {
-						if (addr_right!=NULL) {
-							len_match_right=match_(tgt_, left+len_match_left, right_, addr_right, capt_info_)
-							assertEx (left+len_match_left+len_match_right<=right_)
-							if (len_match_right>=0) {
-								len_match=left+len_match_left+len_match_right-left_
-								break
-							} else {
-								left+=limit(len_match_left,1)	//^*?hoge への対処
-								continue
-							}
-						} else {
-							len_match=left+len_match_left-left_
-							break
-						}
-					} else {
-						if (addr_right!=NULL) {
-							len_match=-1
-							break
-						} else {
-							len_match=left-left_
-							break
-						}
-					}
-				loop
-				return len_match
-			}
-			if ((oc==OC_ZERO_OR_MORE_GREEDY)||(oc==OC_ONE_OR_MORE_GREEDY)) {
-				best_record_left2=-1	//右オペランドがマッチした位置の最高記録
-				best_record_len_match_right=-1	//↑における一致の長さ
-				
-				//OC_ZERO_OR_MORE_GREEDY については左オペランド無視で試す
-				if (oc==OC_ZERO_OR_MORE_GREEDY) {
-					if (addr_right==NULL) {
-						best_record_left2=left_ : best_record_len_match_right=0
-					} else {
-						len_match_right=match_(tgt_, left_, right_, addr_right, capt_info_)
-						if (len_match_right>=0) {
-							best_record_left2=left_ : best_record_len_match_right=len_match_right
-						}
-					}
-				}
-				
-				left=left_
-				repeat
-					if (left==right_) {break}
-					len_match_left=match_(tgt_, left, right_, addr_left, capt_info_)
-					assertEx (left+len_match_left<=right_)
-					
-					if (len_match_left>=0) {
-						if (addr_right!=NULL) {
-							len_match_right=match_(tgt_, left+len_match_left, right_, addr_right, capt_info_)
-							assertEx (left+len_match_left+len_match_right<=right_)
-							if (len_match_right>=0) {
-								best_record_left2=left+len_match_left
-								best_record_len_match_right=len_match_right
-							}
-							left+=limit(len_match_left,1)	//^*hoge への対処
-							continue
-						} else {
-							best_record_left2=left+len_match_left
-							best_record_len_match_right=0
-							left+=limit(len_match_left,1)	//^*hoge への対処
-							continue
-						}
-					} else {
-						if (addr_right!=NULL) {
-							break
-						} else {
-							best_record_left2=left
-							best_record_len_match_right=0
-							break
-						}
-					}
-				loop
-				if (best_record_left2==-1) {return -1}
-				return best_record_left2+best_record_len_match_right-left_
-			}
-			if ((oc==OC_N)||(oc==OC_N_)||(oc==OC_NM)) {
-				//左オペランドの繰り返し回数のチェック
-				left=left_
-				count_match=0	//マッチした回数
-				len_match=0	//マッチした長さの累積
-				repeat
-					if (left==right_) {break}
-					
-					len_match_left=match_(tgt_, left, right_, addr_left, capt_info_)
-					assertEx (left+len_match_left<=right_)
-					
-					if (len_match_left>=0) {
-						count_match++ : len_match+=len_match_left
-						left+=len_match_left
-						continue
-					} else {break}
-				loop
-				
-				switch oc
-					case OC_N : if (count_match!=get_n@Node_regExp(thisnode)) {return -1} : swbreak
-					case OC_N_ : if (count_match<get_n@Node_regExp(thisnode)) {return -1} : swbreak
-					case OC_NM : if ((count_match<get_n@Node_regExp(thisnode))||(count_match>get_m@Node_regExp(thisnode))) {return -1} : swbreak
-					default
-						assertEx (FALSE)
-				swend
-				assertEx (left_+len_match<=right_)
-				
-				//右オペランドのチェック
-				if (addr_right==NULL) {return len_match}
-				len_match_right=match_(tgt_, left_+len_match, right_, addr_right, capt_info_)
-				if (len_match_right==-1) {return -1}
-				assertEx (left_+len_match+len_match_right<=right_)
-				
-				return len_match+len_match_right
-			}
-			if (oc==OC_POSITIVE_LOOKAHEAD) {
-				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
-				assertEx (left_+len_match_left<=right_)
-				return limit(len_match_left, -1,0)
-			}
-			if (oc==OC_NEGATIVE_LOOKAHEAD) {
-				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
-				assertEx (left_+len_match_left<=right_)
-				if (len_match_left==-1) {return 0}
+			if (addr_right==NULL) {return len_match_left}
+			len_match_right=match_(tgt_, left_+len_match_left, right_, addr_right, capt_info_)
+			if (len_match_right==-1) {
+				len_match_right=match_(tgt_, left_, right_, addr_right, capt_info_)	//左オペランドを無視してもう一度試す
+				if (len_match_right>=0) {return len_match_right}
 				return -1
 			}
-			if (oc==OC_CAPTURE) {
-				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
-				assertEx (left_+len_match_left<=right_)
-				if (len_match_left==-1) {return -1}
-				add@Capt_info_regExp capt_info_, left_, len_match_left
-				return len_match_left
+			assertEx (left_+len_match_left+len_match_right<=right_)
+			return len_match_left+len_match_right
+		}
+		if ((oc==OC_ZERO_OR_MORE)||(oc==OC_ONE_OR_MORE)) {
+			/*
+				tgt_="a"
+				pattern=".*?a"
+				
+				のような病理的なケースにも対処せなばならぬ
+			*/
+			//OC_ZERO_OR_MORE については左オペランド無視で試す
+			if (oc==OC_ZERO_OR_MORE) {
+				if (addr_right==NULL) {return 0}	//もうそれでいい
+				len_match_right=match_(tgt_, left_, right_, addr_right, capt_info_)
+				if (len_match_right>=0) {return len_match_right}	//もうそれでいい
 			}
+			
+			left=left_
+			repeat
+				if (left==right_) {len_match=-1 : break}
+				
+				len_match_left=match_(tgt_, left, right_, addr_left, capt_info_)
+				assertEx (left+len_match_left<=right_)
+				
+				if (len_match_left>=0) {
+					if (addr_right!=NULL) {
+						len_match_right=match_(tgt_, left+len_match_left, right_, addr_right, capt_info_)
+						assertEx (left+len_match_left+len_match_right<=right_)
+						if (len_match_right>=0) {
+							len_match=left+len_match_left+len_match_right-left_
+							break
+						} else {
+							left+=limit(len_match_left,1)	//^*?hoge への対処
+							continue
+						}
+					} else {
+						len_match=left+len_match_left-left_
+						break
+					}
+				} else {
+					if (addr_right!=NULL) {
+						len_match=-1
+						break
+					} else {
+						len_match=left-left_
+						break
+					}
+				}
+			loop
+			return len_match
+		}
+		if ((oc==OC_ZERO_OR_MORE_GREEDY)||(oc==OC_ONE_OR_MORE_GREEDY)) {
+			best_record_left2=-1	//右オペランドがマッチした位置の最高記録
+			best_record_len_match_right=-1	//↑における一致の長さ
+			
+			//OC_ZERO_OR_MORE_GREEDY については左オペランド無視で試す
+			if (oc==OC_ZERO_OR_MORE_GREEDY) {
+				if (addr_right==NULL) {
+					best_record_left2=left_ : best_record_len_match_right=0
+				} else {
+					len_match_right=match_(tgt_, left_, right_, addr_right, capt_info_)
+					if (len_match_right>=0) {
+						best_record_left2=left_ : best_record_len_match_right=len_match_right
+					}
+				}
+			}
+			
+			left=left_
+			repeat
+				if (left==right_) {break}
+				len_match_left=match_(tgt_, left, right_, addr_left, capt_info_)
+				assertEx (left+len_match_left<=right_)
+				
+				if (len_match_left>=0) {
+					if (addr_right!=NULL) {
+						len_match_right=match_(tgt_, left+len_match_left, right_, addr_right, capt_info_)
+						assertEx (left+len_match_left+len_match_right<=right_)
+						if (len_match_right>=0) {
+							best_record_left2=left+len_match_left
+							best_record_len_match_right=len_match_right
+						}
+						left+=limit(len_match_left,1)	//^*hoge への対処
+						continue
+					} else {
+						best_record_left2=left+len_match_left
+						best_record_len_match_right=0
+						left+=limit(len_match_left,1)	//^*hoge への対処
+						continue
+					}
+				} else {
+					if (addr_right!=NULL) {
+						break
+					} else {
+						best_record_left2=left
+						best_record_len_match_right=0
+						break
+					}
+				}
+			loop
+			if (best_record_left2==-1) {return -1}
+			return best_record_left2+best_record_len_match_right-left_
+		}
+		if ((oc==OC_N)||(oc==OC_N_)||(oc==OC_NM)) {
+			//左オペランドの繰り返し回数のチェック
+			left=left_
+			count_match=0	//マッチした回数
+			len_match=0	//マッチした長さの累積
+			repeat
+				if (left==right_) {break}
+				
+				len_match_left=match_(tgt_, left, right_, addr_left, capt_info_)
+				assertEx (left+len_match_left<=right_)
+				
+				if (len_match_left>=0) {
+					count_match++ : len_match+=len_match_left
+					left+=len_match_left
+					continue
+				} else {break}
+			loop
+			
+			switch oc
+				case OC_N : if (count_match!=get_n@Node_regExp(thisnode)) {return -1}
+				case OC_N_ : if (count_match<get_n@Node_regExp(thisnode)) {return -1}
+				case OC_NM : if ((count_match<get_n@Node_regExp(thisnode))||(count_match>get_m@Node_regExp(thisnode))) {return -1}
+				default
+					assertEx (FALSE)
+			swend
+			assertEx (left_+len_match<=right_)
+			
+			//右オペランドのチェック
+			if (addr_right==NULL) {return len_match}
+			len_match_right=match_(tgt_, left_+len_match, right_, addr_right, capt_info_)
+			if (len_match_right==-1) {return -1}
+			assertEx (left_+len_match+len_match_right<=right_)
+			
+			return len_match+len_match_right
+		}
+		if (oc==OC_POSITIVE_LOOKAHEAD) {
+			len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
+			assertEx (left_+len_match_left<=right_)
+			return limit(len_match_left, -1,0)
+		}
+		if (oc==OC_NEGATIVE_LOOKAHEAD) {
+			len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
+			assertEx (left_+len_match_left<=right_)
+			if (len_match_left==-1) {return 0}
+			return -1
+		}
+		if (oc==OC_CAPTURE) {
+			len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
+			assertEx (left_+len_match_left<=right_)
+			if (len_match_left==-1) {return -1}
+			add@Capt_info_regExp capt_info_, left_, len_match_left
+			return len_match_left
+		}
+		if (oc==OC_POSITIVE_LOOKBEHIND) {
+			return limit(match_leftward(tgt_, 0, left_, addr_left, capt_info_),-1,0)
+		}
+		if (oc==OC_NEGATIVE_LOOKBEHIND) {
+			if (match_leftward(tgt_, 0, left_, addr_left, capt_info_)==-1) {return 0}
+			return -1
+		}
 		
 		assertEx(FALSE)
 		return
@@ -1231,5 +1536,7 @@ init@mod_regExp
 	#undef OC_PACK
 	#undef OC_POSITIVE_LOOKAHEAD
 	#undef OC_NEGATIVE_LOOKAHEAD
+	#undef OC_POSITIVE_LOOKBEHIND
+	#undef OC_NEGATIVE_LOOKBEHIND
 	#undef OC_CAPTURE
 	#undef OC_DUMMY
