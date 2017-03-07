@@ -1,6 +1,6 @@
 #cmpopt varinit 1
 
-#include "mod_regExp.as"
+#include "../mod_regExp.as"
 
 #define TRUE	1
 #define FALSE	0
@@ -114,7 +114,8 @@
 	//tgt="Ç®Å["
 	//tgt="(Ç†Ç¢Ç§|Ç¶Ç®)Ç©Ç´"
 	//tgt="\\b\\s+?"
-	tgt="\\((?=.+[^)])\\)"
+	//tgt="\\((?=.+[^)])\\)"
+	tgt="(?!a)"
 	errIdx=0
 	if (regExp_setPat(tgt, errIdx)) {
 		mes "ç\ï∂ñÿÅ´"

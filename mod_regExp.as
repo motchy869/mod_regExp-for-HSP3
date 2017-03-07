@@ -47,7 +47,8 @@
 	#enum global OC_SET	//文字集合
 	#enum global OC_ANTI_SET	//除外文字集合
 	#enum global OC_PACK	//(?:) 更に解析、分解され、最終的な構文木には残らない。
-	#enum global OC_POSITIVE_LOOKAHEAD	/*\/*/
+	#enum global OC_POSITIVE_LOOKAHEAD	//(?=)
+	#enum global OC_NEGATIVE_LOOKAHEAD	//(?!)
 	#enum global OC_CAPTURE	//キャプチャ
 	#enum global OC_DUMMY
 
@@ -220,7 +221,7 @@
 		return flg
 	
 	#defcfunc local dont_need_left_operand int oc_	//左オペランド不要か?
-		return ((oc_==OC_SIMPLE)||(oc_==OC_ANY_ENG_LET)||(oc_==OC_NOT_ENG_LET)||(oc_==OC_ANY_SPACE)||(oc_==OC_NOT_SPACE)||(oc_==OC_ANY_DIGIT)||(oc_==OC_NOT_DIGIT)||(oc_==OC_ANY)||(oc_==OC_BOUND)||(oc_==OC_NOT_BOUND)||(oc_==OC_LINEHEAD)||(oc_==OC_LINEEND)||(oc_==OC_SET)||(oc_==OC_ANTI_SET)||(oc_==OC_PACK)||(oc_==OC_POSITIVE_LOOKAHEAD)||(oc_==OC_CAPTURE))
+		return ((oc_==OC_SIMPLE)||(oc_==OC_ANY_ENG_LET)||(oc_==OC_NOT_ENG_LET)||(oc_==OC_ANY_SPACE)||(oc_==OC_NOT_SPACE)||(oc_==OC_ANY_DIGIT)||(oc_==OC_NOT_DIGIT)||(oc_==OC_ANY)||(oc_==OC_BOUND)||(oc_==OC_NOT_BOUND)||(oc_==OC_LINEHEAD)||(oc_==OC_LINEEND)||(oc_==OC_SET)||(oc_==OC_ANTI_SET)||(oc_==OC_PACK)||(oc_==OC_POSITIVE_LOOKAHEAD)||(oc_==OC_NEGATIVE_LOOKAHEAD)||(oc_==OC_CAPTURE))
 
 	#defcfunc local node_exists int addr_	//(デバッグ用)そのノードが存在するか
 		if (addr_==NULL) {return FALSE}
@@ -582,14 +583,15 @@
 					len_=right2+1-left_
 					if (len_<=2) {errIdx_=left_ : return OC_INVALID}	//中身が空
 					
-					//( ), (?:), (?=) のどれか?
+					//( ), (?:), (?=), (?!) のどれか?
 					char=peek(tgt_, left_+1)
 					if (char=='?') {
-						if (len_<=4) {errIdx_=left_+1 : return OC_INVALID}	//(?), (?:), (?=)
+						if (len_<=4) {errIdx_=left_+1 : return OC_INVALID}	//(?), (?:), (?=) 等
 						char=peek(tgt_, left_+2)
 						switch char
 							case ':' : oc=OC_PACK : swbreak
 							case '=' : oc=OC_POSITIVE_LOOKAHEAD : swbreak
+							case '!' : oc=OC_NEGATIVE_LOOKAHEAD : swbreak
 							default
 								errIdx_=left_+2 : return OC_INVALID
 						swend
@@ -739,12 +741,17 @@
 					case OC_POSITIVE_LOOKAHEAD
 						addr_left=build_tree(tgt_, left_+3, right_-1, errIdx_)
 						if (addr_left==NULL) {return NULL}
-						newmod tree, Node_regExp, oc1, "(?=)", 0,0, addr_left,NULL	//左ノードのみ使う
+						newmod tree, Node_regExp, oc1, "(?=)", 0,0, addr_left,NULL
+						return stat
+					case OC_NEGATIVE_LOOKAHEAD
+						addr_left=build_tree(tgt_, left_+3, right_-1, errIdx_)
+						if (addr_left==NULL) {return NULL}
+						newmod tree, Node_regExp, oc1, "(?!)", 0,0, addr_left,NULL
 						return stat
 					case OC_CAPTURE
 						addr_left=build_tree(tgt_, left_+1, right_-1, errIdx_)
 						if (addr_left==NULL) {return NULL}
-						newmod tree, Node_regExp, oc1, "()", 0,0, addr_left,NULL	//左ノードのみ使う
+						newmod tree, Node_regExp, oc1, "()", 0,0, addr_left,NULL
 						return stat
 					default
 						newmod tree, Node_regExp, oc1, get_string@Node_regExp(node1), 0,0, NULL,NULL
@@ -1089,6 +1096,12 @@
 				assertEx (left_+len_match_left<=right_)
 				return limit(len_match_left, -1,0)
 			}
+			if (oc==OC_NEGATIVE_LOOKAHEAD) {
+				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
+				assertEx (left_+len_match_left<=right_)
+				if (len_match_left==-1) {return 0}
+				return -1
+			}
 			if (oc==OC_CAPTURE) {
 				len_match_left=match_(tgt_, left_, right_, addr_left, capt_info_)
 				assertEx (left_+len_match_left<=right_)
@@ -1207,5 +1220,6 @@ init@mod_regExp
 	#undef OC_ANTI_SET
 	#undef OC_PACK
 	#undef OC_POSITIVE_LOOKAHEAD
+	#undef OC_NEGATIVE_LOOKAHEAD
 	#undef OC_CAPTURE
 	#undef OC_DUMMY
