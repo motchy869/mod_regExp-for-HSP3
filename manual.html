@@ -280,6 +280,8 @@ i)で得られる。</p>
 内ではすべての文字を1バイト文字として扱っているため全角文字を入れても意味をなさない。すなわち [あい] 
 としても「あい」は4バイトに切り刻まれてしまうため意味がない。<br />
 　[ ] の代わりに (|) を用いて (あ|い) とするしかない。</p>
+<p class="auto-style6">　| で左右両方にマッチするときは長い方を採用する。従って例えば target="ABCD", 
+pattern="(ABC|AB)C" では一致無しとなる。</p>
 <hr />
 <p class="auto-style8">ライセンス</p>
 <p class="auto-style6">motchy が書いたソースコードと関連ファイルはMITライセンスに従います。<br />
@@ -317,10 +319,11 @@ motchy869@gmail.com</a></p>
 		\D \b \B</td>
 	</tr>
 	<tr>
-		<td class="auto-style16" style="width: 100px; height: 20px">ver 1.1.1</td>
+		<td class="auto-style16" style="width: 100px; height: 20px">ver 1.2.0</td>
 		<td class="auto-style16" style="width: 100px; height: 20px">2017/3/7</td>
-		<td class="auto-style16" style="height: 20px">[ ] 内で ] 
-		以外の括弧文字が制御文字として認識されてしまう不具合を修正</td>
+		<td class="auto-style16" style="height: 20px">・[ ] 内で ] 
+		以外の括弧文字が制御文字として認識されてしまう不具合を修正<br />
+		・(?=), (?!) に対応</td>
 	</tr>
 </table>
 
